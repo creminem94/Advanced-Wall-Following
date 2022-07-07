@@ -10,20 +10,35 @@ import numpy as np
 import math
 import time
 import threading
-import keyboard
+
+
+class Point(object):
+    distance = 0
+    angle = 0
+    x = 0
+    y = 0
+
+    # The class "constructor" - It's actually an initializer
+    def __init__(self, distance, angle, x, y):
+        self.distance = distance
+        self.angle = angle
+        self.x = x
+        self.y = y
+
 
 class AdvancedWallFollowing(Node):
 
     def __init__(self):
         super().__init__('advance_wall_following_node')
-        # definition of publisher and subscriber object to /cmd_vel and /scan 
+        # definition of publisher and subscriber object to /cmd_vel and /scan
         self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 1)
-        self.subscription = self.create_subscription(LaserScan, '/scan', self.laser_callback, rclpy.qos.qos_profile_sensor_data)
-        
+        self.subscription = self.create_subscription(
+            LaserScan, '/scan', self.laser_callback, rclpy.qos.qos_profile_sensor_data)
+
         # initial state of FSM
         self.state_ = 0
 
-        #initialization dict of lidar regions
+        # initialization dict of lidar regions
         self.regions = {
             'front': 0,
             'right': 0,
@@ -45,34 +60,35 @@ class AdvancedWallFollowing(Node):
 
         timer_period = 0.1  # seconds
 
-        self.turnAround=30
+        self.turnAround = 30
 
-        self.wallToRight=False
+        self.wallToRight = False
 
-        self.rewind=False
-        self.msg_list_lin=[]
-        self.msg_list_ang=[]
+        self.rewind = False
+        self.msg_list_lin = []
+        self.msg_list_ang = []
 
-        self.timer = self.create_timer(timer_period, self.control_loop)
+        self.points_of_scan = []
 
-        keyboard.on_press_key('r', self.onPressKeyCallback)
+        # self.timer = self.create_timer(timer_period, self.control_loop)
 
-    
-    def onPressKeyCallback(self,event):
-        print('r key pressed')
-        if(self.rewind):
-            self.msg_list_lin=[]
-            self.msg_list_ang=[]
-            self.change_state(2)
+        # keyboard.on_press_key('r', self.onPressKeyCallback)
 
-        self.turnAround=30
-        self.rewind = not self.rewind
-        
-        
+    # def onPressKeyCallback(self,event):
+    #     print('r key pressed')
+    #     if(self.rewind):
+    #         self.msg_list_lin=[]
+    #         self.msg_list_ang=[]
+    #         self.change_state(2)
+
+    #     self.turnAround=30
+    #     self.rewind = not self.rewind
+
     # loop each 0.1 seconds
+
     def control_loop(self):
-    
-        # actions for states 
+
+        # actions for states
         if self.state_ == 0:
             self.find_wall()
         elif self.state_ == 1:
@@ -93,32 +109,29 @@ class AdvancedWallFollowing(Node):
 
         self.publisher_.publish(self.msg)
 
-            
     # laser scanner callback
+
     def laser_callback(self, msg):
-        # populate the lidar reagions with minimum distance 
-        # where you find <ranges> you have to read from msg the desired interval
-        # I suggesto to do parametric the ranges in this way you don't have to change the value for the real robot 
 
         ranges = msg.ranges
-        frontAngle = 60
-        half = int(len(ranges)/2)
-        rangesTopRight = ranges[0:frontAngle]
-        rangesTopLeft = ranges[len(ranges)-frontAngle:len(ranges)-1]
-        rangesRight = ranges[half+frontAngle:len(ranges)-frontAngle]
-        rangesLeft = ranges[frontAngle+1:half-frontAngle]
 
+        numOfRanges = len(ranges)
 
+        # in this way it should also work when we test in real robot
+        angBetwewn2Rays = 360/numOfRanges
 
-        self.regions = {
-        'front':  min(min(min(rangesTopLeft), 10), min(min(rangesTopRight), 10)),
-        'left':  min(min(rangesLeft), 10),
-        'right':  min(min(rangesRight), 10),
-        }
-
-        # function where are definied the rules for the change state
-        self.take_action()
-
+        self.points_of_scan.clear()
+        for idx in range(numOfRanges):
+            r = np.nan_to_num(ranges[idx])
+            angle = idx*angBetwewn2Rays
+            x = r*math.cos(angle)
+            # elements in ranges start from angle 0 and ends with angle 360 clockwise, reason for the -
+            y = -r*math.sin(angle)
+            p = Point(r, angle, x, y)
+            self.points_of_scan.append(p)
+            print("IDX ",idx, " X ", x, " Y ",y)
+        
+        print("\n\nAAAAAAAAAAA\n\n")
 
     def take_action(self):
         # you have to implement the if condition usign the lidar regions and threshold
@@ -127,67 +140,67 @@ class AdvancedWallFollowing(Node):
 
         if(self.rewind):
             self.change_state(4)
-        else:    
+        else:
             if(self.wallToRight):
-                if self.regions['right'] > self.th and (self.state_ == 1 or self.state_ == 2) :
+                if self.regions['right'] > self.th and (self.state_ == 1 or self.state_ == 2):
                     self.change_state(0)
                 elif self.regions['front'] < self.th and (self.state_ == 0 or self.state_ == 2):
                     self.change_state(1)
                 elif self.regions['front'] > self.th and self.regions['left'] > self.th and self.regions['right'] < self.th and (self.state_ == 0 or self.state_ == 1):
-                    self.change_state(2)   
+                    self.change_state(2)
             else:
-                if self.regions['left'] > self.th and (self.state_ == 3 or self.state_ == 2) :
+                if self.regions['left'] > self.th and (self.state_ == 3 or self.state_ == 2):
                     self.change_state(0)
                 elif self.regions['front'] < self.th and (self.state_ == 0 or self.state_ == 2):
                     self.change_state(3)
                 elif self.regions['front'] > self.th and self.regions['right'] > self.th and self.regions['left'] < self.th and (self.state_ == 0 or self.state_ == 3):
-                    self.change_state(2) 
-            
+                    self.change_state(2)
 
-        
     # function to update state
     # don't modify the function
+
     def change_state(self, state):
-        
+
         if state is not self.state_:
-            print('Wall follower - [%s] - %s' % (state, self.state_dict_[state]))
+            print('Wall follower - [%s] - %s' %
+                  (state, self.state_dict_[state]))
             self.state_ = state
 
     def find_wall(self):
         print("find")
-        self.msg.linear.x  = 0.1
+        self.msg.linear.x = 0.1
         if(self.wallToRight):
-            self.msg.angular.z=-0.8
+            self.msg.angular.z = -0.8
         else:
             self.msg.angular.z = 0.5
 
     def align_left(self):
         print("align left")
-        self.msg.linear.x  = 0.0
+        self.msg.linear.x = 0.0
         self.msg.angular.z = 1.0
-    
+
     def align_right(self):
         print("align right")
-        self.msg.linear.x  = 0.0
+        self.msg.linear.x = 0.0
         self.msg.angular.z = -1.0
 
     def follow_the_wall(self):
         print("follow")
-        self.msg.linear.x  = 0.1
+        self.msg.linear.x = 0.1
         self.msg.angular.z = 0.0
 
     def reverse(self):
-        if(self.turnAround>0):
-            self.msg.linear.x  = 0.0
+        if(self.turnAround > 0):
+            self.msg.linear.x = 0.0
             self.msg.angular.z = 1.0
-            self.turnAround-=1
+            self.turnAround -= 1
             return
 
-        if(len(self.msg_list_lin)==0):
-            self.rewind=False
+        if(len(self.msg_list_lin) == 0):
+            self.rewind = False
             self.change_state(2)
         else:
-            self.msg.linear.x  = self.msg_list_lin[len(self.msg_list_lin)-1]
+            self.msg.linear.x = self.msg_list_lin[len(self.msg_list_lin)-1]
             self.msg.angular.z = -self.msg_list_ang[len(self.msg_list_ang)-1]
             self.msg_list_lin.pop()
             self.msg_list_ang.pop()
@@ -201,7 +214,6 @@ def main(args=None):
     advance_wall_following_node = AdvancedWallFollowing()
 
     rclpy.spin(advance_wall_following_node)
-
 
     advance_wall_following_node.destroy_node()
     rclpy.shutdown()

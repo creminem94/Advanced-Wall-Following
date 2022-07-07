@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'advanced_wall_following = advanced_wall_following.advanced_wall_following:main'
         ],
     },
 )

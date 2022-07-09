@@ -10,7 +10,7 @@ import numpy as np
 import math
 import time
 import threading
-
+from advanced_wall_following.helpers import ransac
 
 class Point(object):
     distance = 0
@@ -68,21 +68,11 @@ class AdvancedWallFollowing(Node):
         self.msg_list_lin = []
         self.msg_list_ang = []
 
-        self.points_of_scan = []
+        self.scanPoints = []
 
         # self.timer = self.create_timer(timer_period, self.control_loop)
 
         # keyboard.on_press_key('r', self.onPressKeyCallback)
-
-    # def onPressKeyCallback(self,event):
-    #     print('r key pressed')
-    #     if(self.rewind):
-    #         self.msg_list_lin=[]
-    #         self.msg_list_ang=[]
-    #         self.change_state(2)
-
-    #     self.turnAround=30
-    #     self.rewind = not self.rewind
 
     # loop each 0.1 seconds
 
@@ -114,24 +104,39 @@ class AdvancedWallFollowing(Node):
     def laser_callback(self, msg):
 
         ranges = msg.ranges
-
+        
         numOfRanges = len(ranges)
 
         # in this way it should also work when we test in real robot
         angBetwewn2Rays = 360/numOfRanges
 
-        self.points_of_scan.clear()
+        self.scanPoints.clear()
         for idx in range(numOfRanges):
             r = np.nan_to_num(ranges[idx])
             angle = idx*angBetwewn2Rays
             x = r*math.cos(angle)
             # elements in ranges start from angle 0 and ends with angle 360 clockwise, reason for the -
             y = -r*math.sin(angle)
-            p = Point(r, angle, x, y)
-            self.points_of_scan.append(p)
-            print("IDX ",idx, " X ", x, " Y ",y)
-        
-        print("\n\nAAAAAAAAAAA\n\n")
+            # p = Point(r, angle, x, y)
+            self.scanPoints.append(np.array([x,y]))
+            # print("IDX ",idx, " X ", x, " Y ",y)
+        lines = list()
+        nInliners = 80
+        maxIter = 100
+        threshold = 0.5
+        points2fit = self.scanPoints
+        for i in range(0,4):
+            line, inliers, outliers = ransac(points2fit, maxIter, threshold, nInliners)
+            if line is None:
+                break
+            lines.append(line)
+            if len(outliers) <= nInliners:
+                break
+            points2fit = outliers
+
+        print(lines)
+
+        # print("\n\nAAAAAAAAAAA\n\n")
 
     def take_action(self):
         # you have to implement the if condition usign the lidar regions and threshold

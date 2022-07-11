@@ -30,10 +30,11 @@ def ransac(points,maxIter,t,d):
                 inliers.append(A)
             else:
                 outliers.append(A)
+
         if len(inliers) >= d:
-            np.polyfit(inliers[0], inliers[1], 1)
-            bestInliers = bestInliers
-            bestOutliers = bestOutliers
+            bestLine = np.polyfit(inliers[0], inliers[1], 1)
+            bestInliers = inliers
+            bestOutliers = outliers
             break
     
     return bestLine, bestInliers, bestOutliers

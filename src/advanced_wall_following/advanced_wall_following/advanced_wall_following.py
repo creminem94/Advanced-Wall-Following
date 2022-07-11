@@ -125,8 +125,8 @@ class AdvancedWallFollowing(Node):
         maxIter = 100
         threshold = 0.5
         points2fit = self.scanPoints
-        for i in range(0,4):
-            line, inliers, outliers = ransac(points2fit, maxIter, threshold, nInliners)
+        while(True):
+            line, B, C, inliers, outliers = ransac(points2fit, maxIter, threshold, nInliners)
             if line is None:
                 break
             lines.append(line)

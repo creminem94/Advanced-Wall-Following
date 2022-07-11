@@ -5,6 +5,8 @@ from numpy.linalg import norm
 def ransac(points,maxIter,t,d):
     i = 0
     bestLine = None
+    bestB = None
+    bestC = None
     bestInliers = list()
     bestOutliers = list()
     random.seed()
@@ -33,11 +35,13 @@ def ransac(points,maxIter,t,d):
 
         if len(inliers) >= d:
             bestLine = np.polyfit(inliers[0], inliers[1], 1)
+            bestB = B
+            bestC = C
             bestInliers = inliers
             bestOutliers = outliers
             break
     
-    return bestLine, bestInliers, bestOutliers
+    return bestLine, bestB, bestC, bestInliers, bestOutliers
 
 def point2lineDist(A,B,C):
     #A is the point to "project", B and C are the points that define the

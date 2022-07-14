@@ -72,7 +72,6 @@
      <Compile Include="Assets\Scripts\MonoBehaviour\Teleop\UnityInputTeleop.cs" />
      <Compile Include="Assets\Scripts\Urdf\UrdfComponents\Common\UrdfVisuals.cs" />
      <Compile Include="Assets\Scripts\MonoBehaviour\Camera\CameraMovement.cs" />
-     <Compile Include="Assets\Scripts\lineSpawner.cs" />
      <Compile Include="Assets\Scripts\Urdf\UrdfComponents\Simulation\UrdfSimulatedLink.cs" />
      <Compile Include="Assets\Scripts\Urdf\UrdfComponents\Simulation\UrdfSimulatedJoint.cs" />
      <None Include="Assets\Model\Robot\turtlebot3\turtlebot3_description\CMakeLists.txt" />

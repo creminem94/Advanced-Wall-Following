@@ -6,26 +6,27 @@ import time
 import numpy as np
 import rclpy
 import rclpy.qos
-from geometry_msgs.msg import Twist, Point
-from nav_msgs.msg import Odometry
+import tf2_py
+import tf_transformations
+from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion, Twist
+from nav_msgs.msg import Odometry, Path
 from rclpy.node import Node
 from sensor_msgs.msg import Imu, LaserScan
 from std_msgs.msg import String
-import tf2_py
-from nav_msgs.msg import Odometry
-import tf_transformations
 
 from advanced_wall_following.helpers import ransac
 
-class AdvancedWallFollowing(Node):
+class AdvancedWallFollowing(Node):  
 
     def __init__(self):
         super().__init__('advance_wall_following_node')
         # definition of publisher and subscriber object to /cmd_vel, /scan and /odom
-        self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 1)
-        self.subscription = self.create_subscription(
+        self.publisher_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 1)
+        self.publisher_ransac_lines = self.create_publisher(
+            Path, '/ransac_lines', 1)
+        self.subscription_laser = self.create_subscription(
             LaserScan, '/scan', self.laser_callback, rclpy.qos.qos_profile_sensor_data)
-        self.subscription = self.create_subscription(
+        self.subscription_odom = self.create_subscription(
             Odometry, '/odom', self.odom_callback, rclpy.qos.qos_profile_sensor_data)
 
         # initial state of FSM
@@ -47,6 +48,7 @@ class AdvancedWallFollowing(Node):
         }
         # velocity command
         self.msg = Twist()
+        self.line_msg = Path()
 
         # distance threshold to the wall
         self.th = 0.15
@@ -65,13 +67,10 @@ class AdvancedWallFollowing(Node):
 
         # robot pose and orientation w.r.t. world frame, robotOrientation is in radiants
         self.robotPose = Point()
-        self.robotOrientation = 0
+        self.robotOrientation = Quaternion()
+        self.robotAngle = 0
 
         # self.timer = self.create_timer(timer_period, self.control_loop)
-
-        # keyboard.on_press_key('r', self.onPressKeyCallback)
-
-    # loop each 0.1 seconds
 
     def control_loop(self):
 
@@ -94,7 +93,7 @@ class AdvancedWallFollowing(Node):
             self.msg_list_lin.append(self.msg.linear.x)
             self.msg_list_ang.append(self.msg.angular.z)
 
-        self.publisher_.publish(self.msg)
+        self.publisher_cmd_vel.publish(self.msg)
 
     # laser scanner callback
 
@@ -105,51 +104,66 @@ class AdvancedWallFollowing(Node):
         numOfRanges = len(ranges)
 
         # in this way it should also work when we test in real robot
-        angBetwewn2Rays = 360/numOfRanges
-
-        self.scanPoints.clear()
+    
+        self.scanPoints=[]
         for idx in range(numOfRanges):
             r = np.nan_to_num(ranges[idx])
-            angle = idx*angBetwewn2Rays
+            angle = idx*msg.angle_increment
             x = r*math.cos(angle)
             # elements in ranges start from angle 0 and ends with angle 360 clockwise, reason for the -
-            y = -r*math.sin(angle)
+            y = r*math.sin(angle)
             # p = Point(r, angle, x, y)
             self.scanPoints.append(np.array([x, y]))
             # print("IDX ",idx, " X ", x, " Y ",y)
-        lines = list()
-        nInliners = 80
+    
+        nInliners = 25
         maxIter = 100
-        threshold = 0.5
+        threshold = 0.001
         points2fit = self.scanPoints
         while(True):
             line, B, C, inliers, outliers = ransac(
                 points2fit, maxIter, threshold, nInliners)
             if line is None:
                 break
-            lines.append(line)
+            self.publish_line([B,C])
+            # lines.append(line)
             if len(outliers) <= nInliners:
                 break
             points2fit = outliers
-
-        print(lines)
-
-        # print("\n\nAAAAAAAAAAA\n\n")
+        # print(lines)
 
     def odom_callback(self, msg):
         # Estimated pose that is typically relative to the fixed world frame.
         pose = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
-        # print("\n\npose: ", pose, "\norientation: ",orientation)
 
         orientation_list = [orientation.x,
                             orientation.y, orientation.z, orientation.w]
         (roll, pitch, yaw) = tf_transformations.euler_from_quaternion(orientation_list)
-        # print("\n\n", roll ," ", pitch, " ", yaw)
 
         # Angle between world frame and robot frame is in radiants
         self.robotPose = pose
-        self.robotOrientation = yaw
+        self.robotOrientation = orientation
+        self.robotAngle = yaw
+
+    def publish_line(self, points):
+        poses=[]
+        for idx in range(len(points)):
+            pose = PoseStamped()
+            pose.pose.position.x = points[idx][0]
+            pose.pose.position.y = points[idx][1]
+            pose.pose.position.z = 0.01
+            pose.header.stamp=self.get_clock().now().to_msg()
+            pose.header.frame_id="/pose"
+
+            poses.append(pose)
+            
+        self.line_msg.header.stamp=self.get_clock().now().to_msg()
+        # frame id must be /base_scan since is the one to which the laser scan data are referred to
+        self.line_msg.header.frame_id="/base_scan"
+        self.line_msg.poses = poses
+        
+        self.publisher_ransac_lines.publish(self.line_msg)
 
     def take_action(self):
         # you have to implement the if condition usign the lidar regions and threshold

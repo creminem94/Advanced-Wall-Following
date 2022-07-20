@@ -1,6 +1,7 @@
 import random
 import numpy as np
 from numpy.linalg import norm
+from enum import Enum
 
 def ransac(points,maxIter,t,d):
     i = 0
@@ -47,3 +48,9 @@ def point2lineDist(A,B,C):
     #A is the point to "project", B and C are the points that define the
     return norm(np.cross(C-B, B-A))/norm(C-B)
 
+class FsmState(Enum):
+    FIND_WALL = 0
+    ALIGN_LEFT = 1
+    FOLLOW_WALL = 2
+    ALIGN_RIGHT = 3
+    REWIND = 4

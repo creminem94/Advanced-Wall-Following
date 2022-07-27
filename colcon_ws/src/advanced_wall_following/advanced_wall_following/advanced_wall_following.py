@@ -51,8 +51,8 @@ class AdvancedWallFollowing(Node):
         self.timer_period = 0.1  # seconds
 
         self.turnAround = 30
-        self.nCycles = 0
         self.aligned = False
+        self.waitingCycles = 0
 
         self.wallToRight = True
 
@@ -66,8 +66,11 @@ class AdvancedWallFollowing(Node):
         # robot pose and orientation w.r.t. world frame, robotOrientation is in radiants
         self.robotPose = Point()
         self.robotOrientation = Quaternion()
+        # current robot orientation w.r.t. /odom
         self.robotAngle = 0
-
+        # robot angle just before starting the align procedure
+        self.startingRobotAngle = 0
+        self.targetAngle=None
         self.timer = self.create_timer(self.timer_period, self.control_loop)
 
     def control_loop(self):
@@ -83,7 +86,8 @@ class AdvancedWallFollowing(Node):
             self.align_right()
         elif self.currentState == FsmState.REWIND:
             self.reverse()
-            pass
+        elif self.currentState == FsmState.WAITING:
+            self.waiting()
         else:
             print("Unknown state")
 
@@ -114,12 +118,37 @@ class AdvancedWallFollowing(Node):
             self.scanPoints.append(np.array([x, y]))
             # print("IDX ",idx, " X ", x, " Y ",y)
     
+
+        
+        frontAngle = 30
+        half = int(len(ranges)/2)
+        rangesTopRight = ranges[0:frontAngle]
+        rangesTopLeft = ranges[len(ranges)-frontAngle:len(ranges)-1]
+        rangesRight = ranges[half+frontAngle:len(ranges)-frontAngle]
+        rangesLeft = ranges[frontAngle+1:half-frontAngle]
+        self.regions = {
+            'front':  min(min(min(rangesTopLeft), 10), min(min(rangesTopRight), 10)),
+            'left':  min(min(rangesLeft), 10),
+            'right':  min(min(rangesRight), 10),
+        }
+        # function where are definied the rules for the change state
+        self.take_action()
+        self.fitRansacLines()
+
+    def fitRansacLines(self):
+
+     
+        #contains list of pair of points that identify each line
+        if self.currentState != FsmState.WAITING:
+            return
         nInliners = 25
-        maxIter = 100
+        maxIter = 50
         threshold = 0.001
         points2fit = self.scanPoints
-        #contains list of pair of points that identify each line
+        print("fitRansacLines")
+
         self.ransacLineParams = []
+        # print("fitLines entry")
         while(True):
             line, B, C, inliers, outliers = ransac(
                 points2fit, maxIter, threshold, nInliners)
@@ -136,23 +165,10 @@ class AdvancedWallFollowing(Node):
             if len(outliers) <= nInliners:
                 break
             points2fit = outliers
-        # print(lines)
-
-        frontAngle = 60
-        half = int(len(ranges)/2)
-        rangesTopRight = ranges[0:frontAngle]
-        rangesTopLeft = ranges[len(ranges)-frontAngle:len(ranges)-1]
-        rangesRight = ranges[half+frontAngle:len(ranges)-frontAngle]
-        rangesLeft = ranges[frontAngle+1:half-frontAngle]
-        self.regions = {
-            'front':  min(min(min(rangesTopLeft), 10), min(min(rangesTopRight), 10)),
-            'left':  min(min(rangesLeft), 10),
-            'right':  min(min(rangesRight), 10),
-        }
-        # function where are definied the rules for the change state
-        self.take_action()
+        # print(self.ransacLineParams)
 
     def odom_callback(self, msg):
+
         # Estimated pose that is typically relative to the fixed world frame.
         pose = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
@@ -164,7 +180,9 @@ class AdvancedWallFollowing(Node):
         # Angle between world frame and robot frame is in radiants
         self.robotPose = pose
         self.robotOrientation = orientation
-        self.robotAngle = yaw
+        self.robotAngle = (yaw if yaw>=0 else 6.28 + yaw)
+        # print("odom ", yaw)
+
 
     def publish_line(self, points):
         poses=[]
@@ -193,6 +211,10 @@ class AdvancedWallFollowing(Node):
             if self.regions['right'] > self.th and (self.currentState == FsmState.FOLLOW_WALL):
                 self.changeState(FsmState.FIND_WALL)
             elif self.regions['front'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.FOLLOW_WALL):
+                self.waitingCycles = 3
+                self.changeState(FsmState.WAITING)
+            elif self.waitingCycles == 0 and self.currentState == FsmState.WAITING:
+                self.startingRobotAngle = self.robotAngle
                 self.changeState(FsmState.ALIGN_LEFT)
             elif self.currentState == FsmState.ALIGN_LEFT and self.aligned:
                 self.aligned = False
@@ -238,38 +260,38 @@ class AdvancedWallFollowing(Node):
 
     def align_left(self):
         print("align left")
-        vel = 1.0
         self.msg.linear.x = 0.0
         self.msg.angular.z = 0.0
 
-        if (self.nCycles > 0):
-            self.msg.linear.x = 0.0
-            self.msg.angular.z = vel
-            self.nCycles -= 1
-            if (self.nCycles == 0):
-                self.aligned = True
-            #     self.changeState(FsmState.FOLLOW_WALL)
-            return
-        if self.aligned:
-            return
-        #step 1: closest ransac line to robot
-        distances = list(map(lambda p: point2lineDist([0,0], p["p1"], p["p2"]), self.ransacLineParams))
-        closestIdx = np.argmin(distances)
-        closestLine = self.ransacLineParams[closestIdx]
-        self.publish_line([closestLine["p1"], closestLine["p2"]])
+        if self.targetAngle:
+            if not self.checkIfAligned():
+                self.msg.angular.z = 1.0
+            else:
+                self.aligned = True 
+                self.targetAngle = None
+        else:
+            # compute target angle
+            distances = list(map(lambda p: point2lineDist([0,0], p["p1"], p["p2"]), self.ransacLineParams))
+            closestIdx = np.argmin(distances)
+            closestLine = self.ransacLineParams[closestIdx]
+            self.publish_line([closestLine["p1"], closestLine["p2"]])
 
-        #step 2: compute angle to align with line
-        p1 = closestLine["p1"]
-        p2 = closestLine["p2"]
-        m = (p2[1]-p1[1])/(p2[0]-p1[0])
-        angle = abs(np.arctan(m))
-        print("computed angle ", angle)
-
-        #step 3: compute number of cycles to complete rotation
-        timeInSec = angle/vel
-        self.nCycles = np.ceil(timeInSec/self.timer_period)
-
-
+            #step 2: compute angle to align with line
+            p1 = closestLine["p1"]
+            p2 = closestLine["p2"]
+            m = (p2[1]-p1[1])/(p2[0]-p1[0])
+            angle = abs(np.arctan(m))
+            self.targetAngle = (angle + self.startingRobotAngle) % 6.28
+            print("computed angle ", angle)
+            print("target angle", self.targetAngle)
+            
+        
+    def checkIfAligned(self):
+        angle_th=0.1
+        # check if we've reached the target angle which indicates we're aligned with ransac line
+        diff=abs(self.targetAngle - self.robotAngle)
+        print("check ", diff)
+        return diff < angle_th or 6.28 - diff <angle_th
         
 
     def align_right(self):
@@ -281,6 +303,13 @@ class AdvancedWallFollowing(Node):
         print("follow")
         self.msg.linear.x = 0.1
         self.msg.angular.z = 0.0
+    
+    def waiting(self):
+        print("waiting")
+        self.msg.linear.x = 0.0
+        self.msg.angular.z = 0.0
+        self.waitingCycles-=1
+         
 
     def reverse(self):
         if(self.turnAround > 0):

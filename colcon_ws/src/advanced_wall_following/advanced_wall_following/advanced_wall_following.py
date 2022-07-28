@@ -1,5 +1,6 @@
 import imp
 import math
+import random
 import threading
 import time
 from turtle import distance
@@ -19,6 +20,8 @@ from std_msgs.msg import String
 from advanced_wall_following.helpers import point2lineDist, ransac
 from advanced_wall_following.helpers import FsmState
 
+#TODO discard far lines, no lines found case 
+
 class AdvancedWallFollowing(Node):  
 
     def __init__(self):
@@ -33,6 +36,7 @@ class AdvancedWallFollowing(Node):
             Odometry, '/odom', self.odom_callback, rclpy.qos.qos_profile_sensor_data)
 
         # initial state of FSM
+        self.previousState = FsmState.FIND_WALL
         self.currentState = FsmState.FIND_WALL
 
         # initialization dict of lidar regions
@@ -50,15 +54,9 @@ class AdvancedWallFollowing(Node):
 
         self.timer_period = 0.1  # seconds
 
-        self.turnAround = 30
+        self.frontAngle = 30
         self.aligned = False
         self.waitingCycles = 0
-
-        self.wallToRight = True
-
-        self.rewind = False
-        self.msg_list_lin = []
-        self.msg_list_ang = []
 
         self.scanPoints = []
         self.ransacLineParams = []
@@ -82,18 +80,10 @@ class AdvancedWallFollowing(Node):
             self.align_left()
         elif self.currentState == FsmState.FOLLOW_WALL:
             self.follow_the_wall()
-        elif self.currentState == FsmState.ALIGN_RIGHT:
-            self.align_right()
-        elif self.currentState == FsmState.REWIND:
-            self.reverse()
         elif self.currentState == FsmState.WAITING:
             self.waiting()
         else:
             print("Unknown state")
-
-        if(not self.rewind):
-            self.msg_list_lin.append(self.msg.linear.x)
-            self.msg_list_ang.append(self.msg.angular.z)
 
         self.publisher_cmd_vel.publish(self.msg)
 
@@ -109,6 +99,7 @@ class AdvancedWallFollowing(Node):
     
         self.scanPoints=[]
         for idx in range(numOfRanges):
+            ranges[idx] += random.randrange(-10, 10, 1)/10000
             r = np.nan_to_num(ranges[idx])
             angle = idx*msg.angle_increment
             x = r*math.cos(angle)
@@ -117,15 +108,11 @@ class AdvancedWallFollowing(Node):
             # p = Point(r, angle, x, y)
             self.scanPoints.append(np.array([x, y]))
             # print("IDX ",idx, " X ", x, " Y ",y)
-    
-
-        
-        frontAngle = 30
         half = int(len(ranges)/2)
-        rangesTopRight = ranges[0:frontAngle]
-        rangesTopLeft = ranges[len(ranges)-frontAngle:len(ranges)-1]
-        rangesRight = ranges[half+frontAngle:len(ranges)-frontAngle]
-        rangesLeft = ranges[frontAngle+1:half-frontAngle]
+        rangesTopRight = ranges[0:self.frontAngle]
+        rangesTopLeft = ranges[len(ranges)-self.frontAngle:len(ranges)-1]
+        rangesRight = ranges[half+self.frontAngle:len(ranges)-self.frontAngle]
+        rangesLeft = ranges[self.frontAngle+1:half-self.frontAngle]
         self.regions = {
             'front':  min(min(min(rangesTopLeft), 10), min(min(rangesTopRight), 10)),
             'left':  min(min(rangesLeft), 10),
@@ -137,7 +124,6 @@ class AdvancedWallFollowing(Node):
 
     def fitRansacLines(self):
 
-     
         #contains list of pair of points that identify each line
         if self.currentState != FsmState.WAITING:
             return
@@ -145,10 +131,18 @@ class AdvancedWallFollowing(Node):
         maxIter = 50
         threshold = 0.001
         points2fit = self.scanPoints
-        print("fitRansacLines")
+        # print('regions', self.regions)
+        excludeTh = self.th
+        if self.regions['front'] < excludeTh and self.regions['right'] < self.th:
+            #we must turn, so to avoid fitting the "right" line, we exclude the right points
+            half = int(len(points2fit)/2)
+            rangesTopRight = points2fit[0:self.frontAngle]
+            rangesTopLeft = points2fit[len(points2fit)-self.frontAngle:len(points2fit)-1]
+            rangesLeft = points2fit[self.frontAngle+1:half-self.frontAngle]
+            points2fit = [*rangesTopRight, *rangesTopLeft, *rangesLeft]
+            # points2fit = points2fit[self.frontAngle+1:len(points2fit)]
 
         self.ransacLineParams = []
-        # print("fitLines entry")
         while(True):
             line, B, C, inliers, outliers = ransac(
                 points2fit, maxIter, threshold, nInliners)
@@ -213,7 +207,7 @@ class AdvancedWallFollowing(Node):
             elif self.regions['front'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.FOLLOW_WALL):
                 self.waitingCycles = 3
                 self.changeState(FsmState.WAITING)
-            elif self.waitingCycles == 0 and self.currentState == FsmState.WAITING:
+            elif self.waitingCycles <= 0 and self.currentState == FsmState.WAITING:
                 self.startingRobotAngle = self.robotAngle
                 self.changeState(FsmState.ALIGN_LEFT)
             elif self.currentState == FsmState.ALIGN_LEFT and self.aligned:
@@ -221,25 +215,6 @@ class AdvancedWallFollowing(Node):
                 self.changeState(FsmState.FOLLOW_WALL)
             # elif self.regions['front'] > self.th and self.regions['left'] > self.th and self.regions['right'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.ALIGN_LEFT):
             #     self.changeState(FsmState.FOLLOW_WALL)
-
-
-        # if(self.rewind ):
-        #     self.changeState(FsmState.REWIND)
-        # else:
-        #     if(self.wallToRight):
-        #         if self.regions['right'] > self.th and (self.currentState == FsmState.ALIGN_LEFT or self.currentState == FsmState.FOLLOW_WALL):
-        #             self.changeState(FsmState.FIND_WALL)
-        #         elif self.regions['front'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.FOLLOW_WALL):
-        #             self.changeState(FsmState.ALIGN_LEFT)
-        #         elif self.regions['front'] > self.th and self.regions['left'] > self.th and self.regions['right'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.ALIGN_LEFT):
-        #             self.changeState(FsmState.FOLLOW_WALL)
-        #     else:
-        #         if self.regions['left'] > self.th and (self.currentState == FsmState.ALIGN_RIGHT or self.currentState == FsmState.FOLLOW_WALL):
-        #             self.changeState(FsmState.FIND_WALL)
-        #         elif self.regions['front'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.FOLLOW_WALL):
-        #             self.changeState(FsmState.ALIGN_RIGHT)
-        #         elif self.regions['front'] > self.th and self.regions['right'] > self.th and self.regions['left'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.ALIGN_RIGHT):
-        #             self.changeState(FsmState.FOLLOW_WALL)
         
     # function to update state
     # don't modify the function
@@ -248,15 +223,38 @@ class AdvancedWallFollowing(Node):
 
         if state is not self.currentState:
             print('Wall follower - %s' % (state.name))
+            self.previousState = self.currentState
             self.currentState = state
+            
 
     def find_wall(self):
         print("find")
         self.msg.linear.x = 0.1
-        if(self.wallToRight):
-            self.msg.angular.z = -0.8
+        minDist = min(self.regions.values())
+        print("dist", minDist)
+        if minDist > 0 and self.previousState == self.currentState:
+            newVel = self.msg.angular.z + 0.005 
+            self.msg.angular.z = min(0.0, newVel)
         else:
-            self.msg.angular.z = 0.5
+            self.msg.angular.z = -0.8
+        # estimatedVel = self.mapDistToVel(minDist)
+        # if estimatedVel < self.msg.angular.z:
+        #     self.msg.angular.z = estimatedVel
+       
+    # def mapDistToVel(self, dist):
+    #     # return -0.8
+    #     print("dist",dist)
+    #     inputRange = [0.15, 0.5]
+    #     outputRange = [-1.0, -0.1]
+    #     if dist < inputRange[0]:
+    #         return outputRange[0]
+    #     if dist > inputRange[1]:
+    #         return outputRange[1]
+
+    #     inDiff = inputRange[1]-inputRange[0]
+    #     outDiff = outputRange[1]-outputRange[0]
+    #     stepSize = outDiff/inDiff
+    #     return outputRange[0]+stepSize*dist
 
     def align_left(self):
         print("align left")
@@ -265,11 +263,11 @@ class AdvancedWallFollowing(Node):
 
         if self.targetAngle:
             if not self.checkIfAligned():
-                self.msg.angular.z = 1.0
+                self.msg.angular.z = 0.5
             else:
                 self.aligned = True 
                 self.targetAngle = None
-        else:
+        elif len(self.ransacLineParams) > 0:
             # compute target angle
             distances = list(map(lambda p: point2lineDist([0,0], p["p1"], p["p2"]), self.ransacLineParams))
             closestIdx = np.argmin(distances)
@@ -281,23 +279,19 @@ class AdvancedWallFollowing(Node):
             p2 = closestLine["p2"]
             m = (p2[1]-p1[1])/(p2[0]-p1[0])
             angle = abs(np.arctan(m))
-            self.targetAngle = (angle + self.startingRobotAngle) % 6.28
-            print("computed angle ", angle)
-            print("target angle", self.targetAngle)
+            marginAngle = 0.03
+            self.targetAngle = (angle + self.startingRobotAngle + marginAngle) % 6.28
+            # print("computed angle ", angle)
+            # print("target angle", self.targgetAngle)
             
         
     def checkIfAligned(self):
-        angle_th=0.1
+        angle_th=0.05
         # check if we've reached the target angle which indicates we're aligned with ransac line
         diff=abs(self.targetAngle - self.robotAngle)
-        print("check ", diff)
+        # print("check ", diff)
         return diff < angle_th or 6.28 - diff <angle_th
         
-
-    def align_right(self):
-        print("align right")
-        self.msg.linear.x = 0.0
-        self.msg.angular.z = -1.0
 
     def follow_the_wall(self):
         print("follow")
@@ -310,25 +304,6 @@ class AdvancedWallFollowing(Node):
         self.msg.angular.z = 0.0
         self.waitingCycles-=1
          
-
-    def reverse(self):
-        if(self.turnAround > 0):
-            self.msg.linear.x = 0.0
-            self.msg.angular.z = 1.0
-            self.turnAround -= 1
-            return
-
-        if(len(self.msg_list_lin) == 0):
-            self.rewind = False
-            self.changeState(FsmState.FOLLOW_WALL)
-        else:
-            self.msg.linear.x = self.msg_list_lin[len(self.msg_list_lin)-1]
-            self.msg.angular.z = -self.msg_list_ang[len(self.msg_list_ang)-1]
-            self.msg_list_lin.pop()
-            self.msg_list_ang.pop()
-            print("rewind msg: ", self.msg)
-
-
 def main(args=None):
     print("main")
     rclpy.init(args=args)

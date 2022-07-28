@@ -52,6 +52,4 @@ class FsmState(Enum):
     FIND_WALL = 0
     ALIGN_LEFT = 1
     FOLLOW_WALL = 2
-    ALIGN_RIGHT = 3
-    REWIND = 4
-    WAITING = 5
+    WAITING = 3

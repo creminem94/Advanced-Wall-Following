@@ -13,6 +13,7 @@ We choose to change how these region are constructed:
 ![alt text](/images/Mobile_Robotics_regions.drawio.png)
 
 Description of the expanded FSM:
+
 ![alt text](/images/Mobile_robotics_FSM.drawio.png)
 
 States:

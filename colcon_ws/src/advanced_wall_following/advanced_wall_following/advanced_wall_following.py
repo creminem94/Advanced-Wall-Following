@@ -50,11 +50,12 @@ class AdvancedWallFollowing(Node):
         self.line_msg = Path()
 
         # distance threshold to the wall
-        self.th = 0.15
+        self.th = 0.25
 
         self.timer_period = 0.1  # seconds
 
         self.frontAngle = 30
+        self.frontLimit = 0
         self.aligned = False
         self.waitingCycles = 0
 
@@ -91,15 +92,16 @@ class AdvancedWallFollowing(Node):
 
     def laser_callback(self, msg):
 
-        ranges = msg.ranges
+        # ranges = msg.ranges
+        ranges = np.nan_to_num(msg.ranges, nan=100)
 
         numOfRanges = len(ranges)
-
+        
         # in this way it should also work when we test in real robot
     
         self.scanPoints=[]
         for idx in range(numOfRanges):
-            ranges[idx] += random.randrange(-10, 10, 1)/10000
+            # ranges[idx] += random.randrange(-10, 10, 1)/10000
             r = np.nan_to_num(ranges[idx])
             angle = idx*msg.angle_increment
             x = r*math.cos(angle)
@@ -109,43 +111,46 @@ class AdvancedWallFollowing(Node):
             self.scanPoints.append(np.array([x, y]))
             # print("IDX ",idx, " X ", x, " Y ",y)
         half = int(len(ranges)/2)
-        rangesTopRight = ranges[0:self.frontAngle]
-        rangesTopLeft = ranges[len(ranges)-self.frontAngle:len(ranges)-1]
-        rangesRight = ranges[half+self.frontAngle:len(ranges)-self.frontAngle]
-        rangesLeft = ranges[self.frontAngle+1:half-self.frontAngle]
+        self.frontLimit = int(numOfRanges*self.frontAngle/360)
+        rangesTopRight = ranges[0: self.frontLimit]
+        rangesTopLeft = ranges[len(ranges)- self.frontLimit:len(ranges)-1]
+
+        rangesRight = ranges[half+ self.frontLimit*2:len(ranges)- self.frontLimit]
+        rangesLeft = ranges[ self.frontLimit+1:half- self.frontLimit*2]
         self.regions = {
             'front':  min(min(min(rangesTopLeft), 10), min(min(rangesTopRight), 10)),
             'left':  min(min(rangesLeft), 10),
             'right':  min(min(rangesRight), 10),
         }
+        #print(self.regions)
         # function where are definied the rules for the change state
         self.take_action()
-        self.fitRansacLines()
+        self.fitRansacLines(25)
 
-    def fitRansacLines(self):
+    def fitRansacLines(self, nInliers):
 
         #contains list of pair of points that identify each line
-        if self.currentState != FsmState.WAITING:
+        if self.currentState != FsmState.WAITING or nInliers <= 0:
             return
-        nInliners = 25
-        maxIter = 50
-        threshold = 0.001
+        maxIter = 100
+        threshold = 0.01
         points2fit = self.scanPoints
         # print('regions', self.regions)
         excludeTh = self.th
         if self.regions['front'] < excludeTh and self.regions['right'] < self.th:
+            print("exlude right data")
             #we must turn, so to avoid fitting the "right" line, we exclude the right points
             half = int(len(points2fit)/2)
-            rangesTopRight = points2fit[0:self.frontAngle]
-            rangesTopLeft = points2fit[len(points2fit)-self.frontAngle:len(points2fit)-1]
-            rangesLeft = points2fit[self.frontAngle+1:half-self.frontAngle]
+            rangesTopRight = points2fit[0: self.frontLimit]
+            rangesTopLeft = points2fit[len(points2fit)- self.frontLimit:len(points2fit)-1]
+            rangesLeft = points2fit[ self.frontLimit+1:half- self.frontLimit]
             points2fit = [*rangesTopRight, *rangesTopLeft, *rangesLeft]
-            # points2fit = points2fit[self.frontAngle+1:len(points2fit)]
+            # points2fit = points2fit[ self.frontLimit+1:len(points2fit)]
 
         self.ransacLineParams = []
         while(True):
             line, B, C, inliers, outliers = ransac(
-                points2fit, maxIter, threshold, nInliners)
+                points2fit, maxIter, threshold, nInliers)
             if line is None:
                 break
             self.ransacLineParams.append({
@@ -156,9 +161,12 @@ class AdvancedWallFollowing(Node):
             })
             # self.publish_line([B,C])
             # lines.append(line)
-            if len(outliers) <= nInliners:
+            if len(outliers) <= nInliers:
                 break
             points2fit = outliers
+        if len(self.ransacLineParams) == 0:
+            print('Decreased inliers to: ', nInliers - 3)
+            self.fitRansacLines(nInliers - 3)
         # print(self.ransacLineParams)
 
     def odom_callback(self, msg):
@@ -236,7 +244,7 @@ class AdvancedWallFollowing(Node):
             newVel = self.msg.angular.z + 0.005 
             self.msg.angular.z = min(0.0, newVel)
         else:
-            self.msg.angular.z = -0.8
+            self.msg.angular.z = -0.6
         # estimatedVel = self.mapDistToVel(minDist)
         # if estimatedVel < self.msg.angular.z:
         #     self.msg.angular.z = estimatedVel
@@ -262,7 +270,9 @@ class AdvancedWallFollowing(Node):
         self.msg.angular.z = 0.0
 
         if self.targetAngle:
-            if not self.checkIfAligned():
+            aligned, diff = self.checkIfAligned()
+            if not aligned:
+                # self.msg.angular.z = (-0.5 if diff < 0 or diff >= 3.14 else 0.5)
                 self.msg.angular.z = 0.5
             else:
                 self.aligned = True 
@@ -283,14 +293,16 @@ class AdvancedWallFollowing(Node):
             self.targetAngle = (angle + self.startingRobotAngle + marginAngle) % 6.28
             # print("computed angle ", angle)
             # print("target angle", self.targgetAngle)
+        else:
+            print("no line fitted")
             
         
     def checkIfAligned(self):
         angle_th=0.05
         # check if we've reached the target angle which indicates we're aligned with ransac line
         diff=abs(self.targetAngle - self.robotAngle)
-        # print("check ", diff)
-        return diff < angle_th or 6.28 - diff <angle_th
+        print("check ",np.rad2deg(self.targetAngle),np.rad2deg(self.robotAngle), np.rad2deg(diff))
+        return diff < angle_th or 6.28 - diff <angle_th, self.targetAngle - self.robotAngle
         
 
     def follow_the_wall(self):

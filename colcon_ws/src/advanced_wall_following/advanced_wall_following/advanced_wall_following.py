@@ -3,19 +3,15 @@ import math
 import random
 import threading
 import time
-from turtle import distance
-from matplotlib.pyplot import close
 
 import numpy as np
 import rclpy
 import rclpy.qos
-import tf2_py
 import tf_transformations
-from geometry_msgs.msg import Point, Pose, PoseStamped, Quaternion, Twist
-from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import Point, Point32, Quaternion, Twist
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from sensor_msgs.msg import Imu, LaserScan
-from std_msgs.msg import String
+from sensor_msgs.msg import PointCloud, LaserScan
 
 from advanced_wall_following.helpers import point2lineDist, ransac
 from advanced_wall_following.helpers import FsmState
@@ -26,10 +22,31 @@ class AdvancedWallFollowing(Node):
 
     def __init__(self):
         super().__init__('advance_wall_following_node')
+
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('wall_threshold', 0.15),
+                ('front_angle', 30),
+                ('ransac.start_inliers', 25),
+                ('ransac.inliers_decrease_factor',3),
+                ('ransac.max_iter',100),
+                ('ransac.point_distance_threshold',0.01),
+                ('find_wall.linear_vel',0.1),
+                ('find_wall.angular_vel',-0.6),
+                ('find_wall.slow_down_factor',0.005),
+                ('align_left.angular_vel',0.5),
+                ('align_left.margin_angle',0.03),
+                ('align_left.aligned_threshold',0.05),
+                ('follow_wall.linear_vel',0.1),
+                ('waiting_cycles',3)
+            ]
+        )
+
         # definition of publisher and subscriber object to /cmd_vel, /scan and /odom
         self.publisher_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 1)
         self.publisher_ransac_lines = self.create_publisher(
-            Path, '/ransac_lines', 1)
+            PointCloud, '/ransac_lines', 1)
         self.subscription_laser = self.create_subscription(
             LaserScan, '/scan', self.laser_callback, rclpy.qos.qos_profile_sensor_data)
         self.subscription_odom = self.create_subscription(
@@ -47,14 +64,13 @@ class AdvancedWallFollowing(Node):
         }
         # velocity command
         self.msg = Twist()
-        self.line_msg = Path()
+        self.line_msg = PointCloud()
 
         # distance threshold to the wall
-        self.th = 0.25
-
+        self.th = self.get_parameter('wall_threshold').value
         self.timer_period = 0.1  # seconds
 
-        self.frontAngle = 30
+        self.frontAngle = self.get_parameter('front_angle').value
         self.frontLimit = 0
         self.aligned = False
         self.waitingCycles = 0
@@ -125,15 +141,15 @@ class AdvancedWallFollowing(Node):
         #print(self.regions)
         # function where are definied the rules for the change state
         self.take_action()
-        self.fitRansacLines(25)
+        self.fitRansacLines(self.get_parameter('ransac.start_inliers').value)
 
     def fitRansacLines(self, nInliers):
 
         #contains list of pair of points that identify each line
         if self.currentState != FsmState.WAITING or nInliers <= 0:
             return
-        maxIter = 100
-        threshold = 0.01
+        maxIter = self.get_parameter('ransac.max_iter').value
+        threshold = self.get_parameter('ransac.point_distance_threshold').value
         points2fit = self.scanPoints
         # print('regions', self.regions)
         excludeTh = self.th
@@ -145,7 +161,6 @@ class AdvancedWallFollowing(Node):
             rangesTopLeft = points2fit[len(points2fit)- self.frontLimit:len(points2fit)-1]
             rangesLeft = points2fit[ self.frontLimit+1:half- self.frontLimit]
             points2fit = [*rangesTopRight, *rangesTopLeft, *rangesLeft]
-            # points2fit = points2fit[ self.frontLimit+1:len(points2fit)]
 
         self.ransacLineParams = []
         while(True):
@@ -157,17 +172,16 @@ class AdvancedWallFollowing(Node):
                 "p1": B,
                 "p2": C,
                 "m": line[0],
-                "q": line[1]
+                "q": line[1],
+                "inliers": inliers
             })
-            # self.publish_line([B,C])
-            # lines.append(line)
             if len(outliers) <= nInliers:
                 break
             points2fit = outliers
         if len(self.ransacLineParams) == 0:
-            print('Decreased inliers to: ', nInliers - 3)
-            self.fitRansacLines(nInliers - 3)
-        # print(self.ransacLineParams)
+            decreasedInliers = nInliers - self.get_parameter('ransac.inliers_decrease_factor').value
+            print('Decreased inliers to: ', decreasedInliers)
+            self.fitRansacLines(decreasedInliers)
 
     def odom_callback(self, msg):
 
@@ -186,22 +200,20 @@ class AdvancedWallFollowing(Node):
         # print("odom ", yaw)
 
 
-    def publish_line(self, points):
-        poses=[]
-        for idx in range(len(points)):
-            pose = PoseStamped()
-            pose.pose.position.x = points[idx][0]
-            pose.pose.position.y = points[idx][1]
-            pose.pose.position.z = 0.01
-            pose.header.stamp=self.get_clock().now().to_msg()
-            pose.header.frame_id="/pose"
+    def publish_line(self, ransacLine):
+        inliers = ransacLine["inliers"]
+        points = []
+        for idx in range(len(inliers)):
+            point = Point32()
+            point.x = inliers[idx][0]
+            point.y = inliers[idx][1]
+            point.z = 0.01
+            points.append(point)
 
-            poses.append(pose)
-            
         self.line_msg.header.stamp=self.get_clock().now().to_msg()
         # frame id must be /base_scan since is the one to which the laser scan data are referred to
         self.line_msg.header.frame_id="/base_scan"
-        self.line_msg.poses = poses
+        self.line_msg.points = points
         
         self.publisher_ransac_lines.publish(self.line_msg)
 
@@ -213,7 +225,7 @@ class AdvancedWallFollowing(Node):
             if self.regions['right'] > self.th and (self.currentState == FsmState.FOLLOW_WALL):
                 self.changeState(FsmState.FIND_WALL)
             elif self.regions['front'] < self.th and (self.currentState == FsmState.FIND_WALL or self.currentState == FsmState.FOLLOW_WALL):
-                self.waitingCycles = 3
+                self.waitingCycles = self.get_parameter('waiting_cycles').value
                 self.changeState(FsmState.WAITING)
             elif self.waitingCycles <= 0 and self.currentState == FsmState.WAITING:
                 self.startingRobotAngle = self.robotAngle
@@ -235,6 +247,7 @@ class AdvancedWallFollowing(Node):
             self.currentState = state
             
 
+    #TODO finish setting up params
     def find_wall(self):
         print("find")
         self.msg.linear.x = 0.1
@@ -282,7 +295,7 @@ class AdvancedWallFollowing(Node):
             distances = list(map(lambda p: point2lineDist([0,0], p["p1"], p["p2"]), self.ransacLineParams))
             closestIdx = np.argmin(distances)
             closestLine = self.ransacLineParams[closestIdx]
-            self.publish_line([closestLine["p1"], closestLine["p2"]])
+            self.publish_line(closestLine)
 
             #step 2: compute angle to align with line
             p1 = closestLine["p1"]

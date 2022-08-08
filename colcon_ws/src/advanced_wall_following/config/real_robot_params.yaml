@@ -1,0 +1,20 @@
+advance_wall_following_node:
+  ros__parameters:
+    wall_threshold: 0.25
+    front_angle: 30 #n degree top-right, n top-left
+    ransac:
+      start_inliers: 25
+      inliers_decrease_factor: 3 #if no inliers found, each cycle the requested inliers will decrease by this value
+      max_iter: 100
+      point_distance_threshold: 0.01
+    find_wall:
+      linear_vel: 0.1
+      angular_vel: -0.6
+      slow_down_factor: 0.005 #angular velocity will be decreased by this factor each cycle until wall found
+    align_left:
+      angular_vel: 0.5
+      margin_angle: 0.03 #over estimation of the target
+      aligned_threshold: 0.05 #distance from target angle
+    follow_wall:
+      linear_vel: 0.1
+    waiting_cycles: 3 #number of cycles to wait while computing ransac

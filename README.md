@@ -59,23 +59,23 @@ We exploit RViz to visualize the fitted lines.
 By launching the awf.launch.py, you will be able to visualize in RViz the cloud of points of the robot's lidar sensor, the cloud of points corresponding to the fitted ransac line, and the robot position
 
 ## Steps for running the code
-### bashrc
+### ~/.bashrc
 To be able to run the node on the real turtlebot you will have to add these lines on your `~/.bashrc`
 
 ```
-export ROS_DOMAIN_ID = #IdOfTheTurtleBot
+export ROS_DOMAIN_ID = #IdOfTheTurtleBot3
 export TURTLEBOT3_MODEL = #ModelOfTheTurtlebot3, burger or waffle
 ```
 
 The ROS_DOMAIN_ID must be commented if you want to run the code in the simulation case, remember to `souce ~/.bashrc` after editing this file to apply the changes
 
 ### Simulation
-open Turtlebot3UnityROS2 project via Unity Hub
-visualizer - ros2 launch advanced_wall_following awf.launch.py 
-ros2 node  - ros2 run advanced_wall_following advanced_wall_following 
+* open Turtlebot3UnityROS2 project via Unity Hub
+* visualizer - ros2 launch advanced_wall_following awf.launch.py 
+* ros2 node  - ros2 run advanced_wall_following advanced_wall_following 
 
 ### Turtlebot3
-ssh ubuntu@<robot_ip> - pw: turtlebot
-ros2 launch turtlebot3_bringup robot.launch.py
-visualizer - ros2 launch advanced_wall_following awf.launch.py 
-ros2 node  - ros2 run advanced_wall_following advanced_wall_following 
+* ssh ubuntu@<robot_ip> - pw: turtlebot
+* ros2 launch turtlebot3_bringup robot.launch.py
+* visualizer - ros2 launch advanced_wall_following awf.launch.py 
+* ros2 node  - ros2 run advanced_wall_following advanced_wall_following 

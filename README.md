@@ -63,8 +63,8 @@ By launching the awf.launch.py, you will be able to visualize in RViz the cloud 
 To be able to run the node on the real turtlebot you will have to add these lines on your `~/.bashrc`
 
 ```
-export ROS_DOMAIN_ID = 34
-export TURTLEBOT3_MODEL = burger
+export ROS_DOMAIN_ID = #IdOfTheTurtleBot
+export TURTLEBOT3_MODEL = #ModelOfTheTurtlebot3, burger or waffle
 ```
 
 The ROS_DOMAIN_ID must be commented if you want to run the code in the simulation case, remember to `souce ~/.bashrc` after editing this file to apply the changes

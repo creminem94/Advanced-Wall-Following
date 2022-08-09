@@ -17,13 +17,13 @@ We reduced the size of Left and Right zone to make the robot more responsive in 
 By exploiting the reduced regions, the robot will start turning right before w.r.t the case where the _behind_ region is considered.
 From our tests we saw that the omitting  the data from the _behind_ region do not lead to a bad enough ransac line estimation to compromise the follow wall algorithm.
 
-![alt text](/images/Mobile_Robotics_regions.drawio.png)
+![alt text](/media/Mobile_Robotics_regions.drawio.png)
 
 The computation of these regions was made parametrically to address real lidar sensors, since is not always the case that a lidar sensor have a 1:1 correspondence between angles and number of ranges. To clarify the previous statement, in simulation we had a 1:1 correspondance, 1 ray every 1 degree, on the tested turlebot3 the LaserScan message contained only 230 rays. 
 
 ### Description of the expanded FSM:
 
-![alt text](/images/Mobile_robotics_FSM.drawio.png)
+![alt text](/media/Mobile_robotics_FSM.drawio.png)
 
 States:
 * FIND_WALL: Initial state of the FSM. The robot will move to find a wall to follow, the angular velocity assign in this state was set at -0.6 m/s. To guarantee to always find a wall once the code is run, the angular velocity is continously decreased until 0.0 m/s at start. The linear velocity was set to 0.1 m/s.
@@ -57,6 +57,12 @@ A guideline for these file is `config/real_robot_params.yaml`, which contains th
 ### Visualization
 We exploit RViz to visualize the fitted lines.
 By launching the awf.launch.py, you will be able to visualize in RViz the cloud of points of the robot's lidar sensor, the cloud of points corresponding to the fitted ransac line, and the robot position
+
+## Results
+
+Video showing code performed on a real turtlebot
+
+![alt text](/media/real_robot_test.gif)
 
 ## Steps for running the code
 ### ~/.bashrc

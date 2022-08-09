@@ -1,6 +1,0 @@
-CMake Error at cmake_install.cmake:41 (file):
-  file INSTALL cannot find
-  "/home/nicola/advancedWallFollowing/Turtlebot3UnityROS2/Assets/Model/Robot/turtlebot3/turtlebot3_description/rviz":
-  No such file or directory.
-
-

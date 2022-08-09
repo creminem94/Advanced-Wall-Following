@@ -1,7 +1,0 @@
-[01m[K/home/nicola/advancedWallFollowing/Turtlebot3UnityROS2/Library/PackageCache/com.unity.ide.visualstudio@2.0.14/Editor/COMIntegration/COMIntegration~/COMIntegration.cpp:11:10:[m[K [01;31m[Kfatal error: [m[Kwindows.h: No such file or directory
-   11 | #include [01;31m[K<windows.h>[m[K
-      |          [01;31m[K^~~~~~~~~~~[m[K
-compilation terminated.
-make[2]: *** [CMakeFiles/COMIntegration.dir/build.make:63: CMakeFiles/COMIntegration.dir/COMIntegration.cpp.o] Error 1
-make[1]: *** [CMakeFiles/Makefile2:76: CMakeFiles/COMIntegration.dir/all] Error 2
-make: *** [Makefile:84: all] Error 2

@@ -1,0 +1,3 @@
+[console_scripts]
+advanced_wall_following = advanced_wall_following.advanced_wall_following:main
+

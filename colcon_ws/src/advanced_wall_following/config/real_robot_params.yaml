@@ -8,7 +8,7 @@ advance_wall_following_node:
       max_iter: 100
       point_distance_threshold: 0.01
     find_wall:
-      linear_vel: 0.1
+      line  ar_vel: 0.1
       angular_vel: -0.6
       slow_down_factor: 0.005 #angular velocity will be decreased by this factor each cycle until wall found
     align_left:

@@ -44,6 +44,12 @@ def generate_launch_description():
                 )
             }]
         ),
+        # Node(package="tf2_ros",
+        #      executable="static_transform_publisher",
+        #      arguments=["0", "0", "0", "0", "0", "0", "0", "base_link", "map"]),
+        # Node(package="tf2_ros",
+        #      executable="static_transform_publisher",
+        #      arguments=["-0.032", "0", "0.172", "0", "0", "0", "1", "base_link", "base_scan"]),
     ])
 
     ld.add_action(rviz_node)

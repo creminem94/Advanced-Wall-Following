@@ -300,7 +300,6 @@ class AdvancedWallFollowing(Node):
         self.msg.angular.z = 0.0
         self.waitingCycles -= 1
 
-
 def main(args=None):
     print("main")
     rclpy.init(args=args)

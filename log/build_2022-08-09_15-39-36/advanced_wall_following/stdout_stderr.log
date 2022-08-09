@@ -1,0 +1,42 @@
+running egg_info
+creating ../../../build/advanced_wall_following/advanced_wall_following.egg-info
+writing ../../../build/advanced_wall_following/advanced_wall_following.egg-info/PKG-INFO
+writing dependency_links to ../../../build/advanced_wall_following/advanced_wall_following.egg-info/dependency_links.txt
+writing entry points to ../../../build/advanced_wall_following/advanced_wall_following.egg-info/entry_points.txt
+writing requirements to ../../../build/advanced_wall_following/advanced_wall_following.egg-info/requires.txt
+writing top-level names to ../../../build/advanced_wall_following/advanced_wall_following.egg-info/top_level.txt
+writing manifest file '../../../build/advanced_wall_following/advanced_wall_following.egg-info/SOURCES.txt'
+reading manifest file '../../../build/advanced_wall_following/advanced_wall_following.egg-info/SOURCES.txt'
+writing manifest file '../../../build/advanced_wall_following/advanced_wall_following.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/nicola/advancedWallFollowing/build/advanced_wall_following/build
+creating /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib
+creating /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following
+copying advanced_wall_following/__init__.py -> /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following
+copying advanced_wall_following/helpers.py -> /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following
+copying advanced_wall_following/advanced_wall_following.py -> /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following
+running install
+running install_lib
+creating /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following
+copying /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following/__init__.py -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following
+copying /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following/helpers.py -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following
+copying /home/nicola/advancedWallFollowing/build/advanced_wall_following/build/lib/advanced_wall_following/advanced_wall_following.py -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following
+byte-compiling /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following/__init__.py to __init__.cpython-38.pyc
+byte-compiling /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following/helpers.py to helpers.cpython-38.pyc
+byte-compiling /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following/advanced_wall_following.py to advanced_wall_following.cpython-38.pyc
+running install_data
+creating /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/ament_index
+creating /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/ament_index/resource_index
+creating /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/ament_index/resource_index/packages
+copying resource/advanced_wall_following -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/ament_index/resource_index/packages
+copying package.xml -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/advanced_wall_following
+creating /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/advanced_wall_following/launch
+copying launch/awf.launch.py -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/advanced_wall_following/launch
+creating /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/advanced_wall_following/rviz
+copying rviz/AWF.rviz -> /home/nicola/advancedWallFollowing/install/advanced_wall_following/share/advanced_wall_following/rviz
+running install_egg_info
+Copying ../../../build/advanced_wall_following/advanced_wall_following.egg-info to /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/python3.8/site-packages/advanced_wall_following-0.0.0-py3.8.egg-info
+running install_scripts
+Installing advanced_wall_following script to /home/nicola/advancedWallFollowing/install/advanced_wall_following/lib/advanced_wall_following
+writing list of installed files to '/home/nicola/advancedWallFollowing/build/advanced_wall_following/install.log'

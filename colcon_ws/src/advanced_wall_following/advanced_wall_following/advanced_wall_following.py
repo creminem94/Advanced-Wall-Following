@@ -235,18 +235,16 @@ class AdvancedWallFollowing(Node):
             self.previousState = self.currentState
             self.currentState = state
 
-    # TODO finish setting up params
-
     def find_wall(self):
         print("find")
-        self.msg.linear.x = 0.1
+        self.msg.linear.x = self.get_parameter('find_wall.linear_vel').value
         minDist = min(self.regions.values())
         print("dist", minDist)
         if minDist > 0 and self.previousState == self.currentState:
-            newVel = self.msg.angular.z + 0.005
+            newVel = self.msg.angular.z + self.get_parameter('find_wall.slow_down_factor').value
             self.msg.angular.z = min(0.0, newVel)
         else:
-            self.msg.angular.z = -0.6
+            self.msg.angular.z = self.get_parameter('find_wall.angular_vel').value
 
     def align_left(self):
         print("align left")
@@ -256,7 +254,7 @@ class AdvancedWallFollowing(Node):
         if self.targetAngle:
             aligned, diff = self.checkIfAligned()
             if not aligned:
-                self.msg.angular.z = 0.5
+                self.msg.angular.z = self.get_parameter('align_left.angular_vel').value
             else:
                 self.aligned = True
                 self.targetAngle = None
@@ -273,7 +271,7 @@ class AdvancedWallFollowing(Node):
             p2 = closestLine["p2"]
             m = (p2[1]-p1[1])/(p2[0]-p1[0])
             angle = abs(np.arctan(m))
-            marginAngle = 0.03
+            marginAngle = self.get_parameter('align_left.margin_angle').value
             self.targetAngle = (
                 angle + self.startingRobotAngle + marginAngle) % 6.28
             # print("computed angle ", angle)
@@ -282,7 +280,7 @@ class AdvancedWallFollowing(Node):
             print("no line fitted")
 
     def checkIfAligned(self):
-        angle_th = 0.05
+        angle_th = self.get_parameter('align_left.aligned_threshold').value
         # check if we've reached the target angle which indicates we're aligned with ransac line
         diff = abs(self.targetAngle - self.robotAngle)
         # print("check ", np.rad2deg(self.targetAngle),
@@ -291,7 +289,7 @@ class AdvancedWallFollowing(Node):
 
     def follow_the_wall(self):
         print("follow")
-        self.msg.linear.x = 0.1
+        self.msg.linear.x = self.get_parameter('follow_wall.linear_vel').value
         self.msg.angular.z = 0.0
 
     def waiting(self):

@@ -53,7 +53,9 @@ The Align Left state consists of choosing the fitted ransac line closer to the r
 The code can accept a file where the parameters for the node are specified, if no file is provided, a set of default parameters is assumed.
 A guideline for these file is `config/real_robot_params.yaml`, which contains the parameters used for the real turtlebot3.
 
-**The tuning of these paramaters is essential for a good performance**
+**The tuning of these paramaters is essential for a good performance when changing from simulation to the real robot**
+
+Inside the config package folder are two parameter files, real_robot_params.yaml contains the parameters for running the code on the real turtlebot3, simulation_params.yaml contains the parameters for the simulation on unity and rviz setup
 
 ### Visualization
 We exploit RViz to visualize the fitted lines.
@@ -91,4 +93,6 @@ The ROS_DOMAIN_ID must be commented if you want to run the code in the simulatio
 * ros2 node  - ros2 run advanced_wall_following advanced_wall_following 
 
 ### Run with parameter file
-* ros2 run advanced_wall_following advanced_wall_following advanced_wall_following_node --ros-args --params-file src/advanced_wall_following/config/real_robot_params.yaml
+The command for runnning the node with the parameter file is the following, the path to the param.yaml file may change depending on where the command is launch
+
+* ros2 run advanced_wall_following advanced_wall_following advanced_wall_following_node --ros-args --params-file src/advanced_wall_following/config/_paramFile_.yaml

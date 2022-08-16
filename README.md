@@ -59,6 +59,9 @@ We exploit RViz to visualize the fitted lines.
 By launching the awf.launch.py, you will be able to visualize in RViz the cloud of points of the robot's lidar sensor, the cloud of points corresponding to the fitted ransac line, and the robot position
 
 ## Results
+Video showing simulation run, the red dots on rviz are the lidar data with added simulated noise, the green points correspond to the ones to which the lines were fitted 
+
+![alt text](/media/simulation.gif)
 
 Video showing code performed on a real turtlebot
 

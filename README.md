@@ -15,7 +15,8 @@ We maintaned the number and nomenclature of the regions used in the lab lecture:
 We changed how these region are constructed to improve the performance of the algorithm.
 We reduced the size of Left and Right zone to make the robot more responsive in the case where it is following a wall which suddenly ends.
 By exploiting the reduced regions, the robot will start turning right before w.r.t the case where the _behind_ region is considered.
-From our tests we saw that the omitting  the data from the _behind_ region do not lead to a bad enough ransac line estimation to compromise the follow wall algorithm.
+From our tests we saw that omitting the data from the _behind_ region still leads to a good ransac line estimation.
+Moreover the front area is reduced to 60° in order to avoid multiple small adjustments; in fact if the angle is bigger, it may happen that a laser scan from the right wall is considered as coming from the front wall, resulting in a change state of the FSM.
 
 ![alt text](/media/Mobile_Robotics_regions.drawio.png)
 
@@ -27,7 +28,7 @@ The computation of these regions was made parametrically to address real lidar s
 
 States:
 * FIND_WALL: Initial state of the FSM. The robot will move to find a wall to follow, the angular velocity assign in this state was set at -0.6 m/s. To guarantee to always find a wall once the code is run, the angular velocity is continously decreased until 0.0 m/s at start. The linear velocity was set to 0.1 m/s.
-* WAITING: In this state the robot will stay still for a little amount of _waitingCycles_, this was done to be able to work with clean lidar data
+* WAITING: In this state the robot will stay still for a little amount of _waitingCycles_, this was done to be able to work with clean lidar data as gathered information is better when the robot is not moving
 * FOLLOW_WALL: the robot will move ahed with a linear velocity of 0.1 m/s
 * ALIGN_LEFT: the robot will try to fit lines from the acquired range data and align itself in the direction of the closest one. The angular velocity of this state was set to 0.5 m/s
 
@@ -43,7 +44,7 @@ The _aligned_ variable was used to indicate when the robot is aligned with the c
 ### Ransac
 We extracted the 2d points from the LaserScan Message of the turtlebot3. From this set we applied the standard ransac algorithm to fit lines. 
 In the case where the robot find itself in a corner, case detectable if both the mininum value of the right and front region are below our _treshold_, we discarded the points of the right region from the 2d points extracted from the LaserScan message. This was done to avoid fitting the wrong line corresponding to the right wall and insted be sure to fit the line corresponding to the front wall.
-If the ransac execution does not resolve any good enough line, the number of inliers will be incrementaly reduced until at least one line is resolved
+If the ransac execution does not resolve any good enough line, the number of inliers requested to ransac algorithm will be incrementaly reduced until at least one line is resolved
 
 ### ALIGN_LEFT State
 The Align Left state consists of choosing the fitted ransac line closer to the robot and rotating left until the robot is aligned with the fitted line, with a certain margin of tolerance. Once the robot is aligned, the aligned variable is set to True to allow the change to the FOLLOW_WALL FSM state.

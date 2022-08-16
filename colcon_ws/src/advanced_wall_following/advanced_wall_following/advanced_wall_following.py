@@ -22,6 +22,7 @@ class AdvancedWallFollowing(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
+                ('sensor_noise', 0.0),
                 ('wall_threshold', 0.15),
                 ('front_angle', 30),
                 ('ransac.start_inliers', 25),
@@ -43,6 +44,7 @@ class AdvancedWallFollowing(Node):
         self.publisher_cmd_vel = self.create_publisher(Twist, '/cmd_vel', 1)
         self.publisher_ransac_lines = self.create_publisher(
             PointCloud, '/ransac_lines', 1)
+        self.publisher_noise_scan = self.create_publisher(LaserScan, '/noise_scan', 1)
         self.subscription_laser = self.create_subscription(
             LaserScan, '/scan', self.laser_callback, rclpy.qos.qos_profile_sensor_data)
         self.subscription_odom = self.create_subscription(
@@ -101,23 +103,27 @@ class AdvancedWallFollowing(Node):
         self.publisher_cmd_vel.publish(self.msg)
 
     def laser_callback(self, msg):
-        ranges = np.nan_to_num(msg.ranges, nan=100)
+        ranges = np.float32(np.nan_to_num(msg.ranges, nan=100.0))
 
         numOfRanges = len(ranges)
 
-        # zone's parametrization, in this code works also on real robot
-
+        noiseLimit = self.get_parameter('sensor_noise').value
         self.scanPoints = []
         for idx in range(numOfRanges):
-            # for simulating noise on range data
-            # ranges[idx] += random.randrange(-10, 10, 1)/10000
+            
+            if noiseLimit > 0:
+                # for simulating noise on range data
+                ranges[idx] += random.randrange(-100, 100, 1)*noiseLimit*0.01
+                
             r = np.nan_to_num(ranges[idx])
             angle = idx*msg.angle_increment
             x = r*math.cos(angle)
             # elements in ranges start from angle 0 and ends with angle 360 clockwise
             y = r*math.sin(angle)
             self.scanPoints.append(np.array([x, y]))
-            # print("IDX ",idx, " X ", x, " Y ",y)
+        if noiseLimit > 0:
+            self.publishNoisePoints(msg, ranges)
+        # zone's parametrization, in this code works also on real robot
         half = int(len(ranges)/2)
         self.frontLimit = int(numOfRanges*self.frontAngle/360)
         rangesTopRight = ranges[0: self.frontLimit]
@@ -135,6 +141,11 @@ class AdvancedWallFollowing(Node):
         # function where are definied the rules for the change state
         self.take_action()
         self.fitRansacLines(self.get_parameter('ransac.start_inliers').value)
+
+    def publishNoisePoints(self, msg, ranges):
+        ranges = ranges.tolist()
+        msg.ranges = ranges
+        self.publisher_noise_scan.publish(msg)
 
     def fitRansacLines(self, nInliers):
 
@@ -235,18 +246,16 @@ class AdvancedWallFollowing(Node):
             self.previousState = self.currentState
             self.currentState = state
 
-    # TODO finish setting up params
-
     def find_wall(self):
         print("find")
-        self.msg.linear.x = 0.1
+        self.msg.linear.x = self.get_parameter('find_wall.linear_vel').value
         minDist = min(self.regions.values())
         print("dist", minDist)
         if minDist > 0 and self.previousState == self.currentState:
-            newVel = self.msg.angular.z + 0.005
+            newVel = self.msg.angular.z + self.get_parameter('find_wall.slow_down_factor').value
             self.msg.angular.z = min(0.0, newVel)
         else:
-            self.msg.angular.z = -0.6
+            self.msg.angular.z = self.get_parameter('find_wall.angular_vel').value
 
     def align_left(self):
         print("align left")
@@ -256,7 +265,7 @@ class AdvancedWallFollowing(Node):
         if self.targetAngle:
             aligned, diff = self.checkIfAligned()
             if not aligned:
-                self.msg.angular.z = 0.5
+                self.msg.angular.z = self.get_parameter('align_left.angular_vel').value
             else:
                 self.aligned = True
                 self.targetAngle = None
@@ -273,7 +282,7 @@ class AdvancedWallFollowing(Node):
             p2 = closestLine["p2"]
             m = (p2[1]-p1[1])/(p2[0]-p1[0])
             angle = abs(np.arctan(m))
-            marginAngle = 0.03
+            marginAngle = self.get_parameter('align_left.margin_angle').value
             self.targetAngle = (
                 angle + self.startingRobotAngle + marginAngle) % 6.28
             # print("computed angle ", angle)
@@ -282,7 +291,7 @@ class AdvancedWallFollowing(Node):
             print("no line fitted")
 
     def checkIfAligned(self):
-        angle_th = 0.05
+        angle_th = self.get_parameter('align_left.aligned_threshold').value
         # check if we've reached the target angle which indicates we're aligned with ransac line
         diff = abs(self.targetAngle - self.robotAngle)
         # print("check ", np.rad2deg(self.targetAngle),
@@ -291,7 +300,7 @@ class AdvancedWallFollowing(Node):
 
     def follow_the_wall(self):
         print("follow")
-        self.msg.linear.x = 0.1
+        self.msg.linear.x = self.get_parameter('follow_wall.linear_vel').value
         self.msg.angular.z = 0.0
 
     def waiting(self):

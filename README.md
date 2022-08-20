@@ -40,11 +40,11 @@ State transtions:
 
 The _aligned_ variable was used to indicate when the robot is aligned with the chosen line from the ransac algorithm, i.e. when the orientation of the computed line corresponds with the one of the robot
 
-## Clarifications 
+## Implementation Details 
 ### Ransac
 We extracted the 2d points from the LaserScan Message of the turtlebot3. From this set we applied the standard ransac algorithm to fit lines. 
 In the case where the robot find itself in a corner, case detectable if both the mininum value of the right and front region are below our _treshold_, we discarded the points of the right region from the 2d points extracted from the LaserScan message. This was done to avoid fitting the wrong line corresponding to the right wall and insted be sure to fit the line corresponding to the front wall.
-If the ransac execution does not resolve any good enough line, the number of inliers requested to ransac algorithm will be incrementaly reduced until at least one line is resolved
+If the ransac execution does not produce any good enough line, the number of inliers requested to ransac algorithm will be incrementaly reduced until at least one line is returned
 
 ### ALIGN_LEFT State
 The Align Left state consists of choosing the fitted ransac line closer to the robot and rotating left until the robot is aligned with the fitted line, with a certain margin of tolerance. Once the robot is aligned, the aligned variable is set to True to allow the change to the FOLLOW_WALL FSM state.
